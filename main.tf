@@ -7,53 +7,61 @@ terraform {
   }
 }
 
-# Leaving it empty so that Terraform just talks with the local Docker application.
 provider "docker" {}
 
 resource "docker_network" "lab_network" {
   name = "default_network"
 }
 
-resource "docker_image" "nginx" {
+# --- IMAGES ---
+resource "docker_image" "nginx_lb" {
   name         = "nginx:latest"
   keep_locally = false
 }
 
-resource "docker_image" "database" {
-  name         = "postgres:latest"
-  keep_locally = false
+resource "docker_image" "api_image" {
+  name = "my-api-image:latest"
+  build {
+    context    = "${path.module}/api"
+    dockerfile = "Dockerfile"
+  }
 }
 
-resource "docker_container" "frontend" {
-  image = docker_image.nginx.image_id
-  name  = "frontend_server"
+resource "docker_image" "frontend_image" {
+  name = "my-frontend-image:latest"
+  build {
+    context    = "${path.module}/frontend"
+    dockerfile = "Dockerfile"
+  }
+}
 
+# --- CONTAINERS ---
+# 1. Hidden API Server (No external ports)
+resource "docker_container" "api" {
+  name  = "api_server"
+  image = docker_image.api_image.name
+  networks_advanced { name = docker_network.lab_network.name }
+}
+
+# 2. Two Web Servers (No external ports, they talk to the API internally)
+resource "docker_container" "frontend" {
+  count = 2
+  name  = "frontend_server_${count.index}"
+  image = docker_image.frontend_image.name
+  networks_advanced { name = docker_network.lab_network.name }
+}
+
+# 3. Load Balancer (Exposed to you on Port 8000)
+resource "docker_container" "load_balancer" {
+  name  = "lb_server"
+  image = docker_image.nginx_lb.image_id
   ports {
     internal = 80
     external = 8000
   }
-
-  # Added so it can talk to the database
-  networks_advanced {
-    name = docker_network.lab_network.name
+  volumes {
+    host_path      = "${abspath(path.module)}/lb.conf"
+    container_path = "/etc/nginx/nginx.conf"
   }
-} # <-- Added the missing closing brace here
-
-resource "docker_container" "postgresdb" {
-  image = docker_image.database.image_id # <-- Fixed the reference name
-  name  = "database_server"
-
-  ports {
-    internal = 5432
-    external = 5432
-  }
-
-  # Added mandatory environment variable for the Postgres image to run
-  env = [
-    "POSTGRES_PASSWORD=mysecretpassword"
-  ]
-
-  networks_advanced {
-    name = docker_network.lab_network.name
-  }
+  networks_advanced { name = docker_network.lab_network.name }
 }

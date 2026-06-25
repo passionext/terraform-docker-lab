@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api.py .
 
 # 5. Expose the port the app runs on
-EXPOSE 8000
+EXPOSE 8080
 
 # 6. The command to run the app continuously when the container starts
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
