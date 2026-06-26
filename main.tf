@@ -67,7 +67,7 @@ resource "docker_container" "grafana" {
   name  = "grafana_server"
   image = docker_image.grafana_image.name
   networks_advanced { name = docker_network.lab_network.name }
-  
+
   # This tells Grafana it lives at /grafana/ so it loads assets correctly
   env = [
     "GF_SERVER_ROOT_URL=http://localhost:8000/grafana/",
@@ -86,7 +86,7 @@ resource "docker_container" "prometheus" {
     "--config.file=/etc/prometheus/prometheus.yml",
     "--web.external-url=http://localhost:8000/prometheus/"
   ]
-  
+
   volumes {
     host_path      = "${abspath(path.module)}/conf/prometheus.yml"
     container_path = "/etc/prometheus/prometheus.yml"
