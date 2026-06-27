@@ -53,11 +53,20 @@ resource "docker_container" "grafana" {
   image = docker_image.grafana_image.name
   networks_advanced { name = docker_network.lab_network.name }
 
+  # FIX 1: Give Grafana permission to write to the data volume so it doesn't crash
+  user = "root"
+
   # This tells Grafana it lives at /grafana/ so it loads assets correctly
   env = [
     "GF_SERVER_ROOT_URL=http://localhost:8000/grafana/",
     "GF_SERVER_SERVE_FROM_SUB_PATH=true"
   ]
+
+  # FIX 2: Save your dashboards permanently
+  volumes {
+    volume_name    = docker_volume.grafana_data.name
+    container_path = "/var/lib/grafana"
+  }
 }
 
 # 4. Prometheus Server (Hidden behind LB)
@@ -66,15 +75,25 @@ resource "docker_container" "prometheus" {
   image = docker_image.prometheus_image.name
   networks_advanced { name = docker_network.lab_network.name }
 
+  # FIX 1: Give Prometheus permission to write to the data volume
+  user = "root"
+
   # This tells Prometheus to expect traffic at /prometheus/
   command = [
     "--config.file=/etc/prometheus/prometheus.yml",
     "--web.external-url=http://localhost:8000/prometheus/"
   ]
 
+  # Config file mount
   volumes {
     host_path      = "${abspath(path.module)}/conf/prometheus.yml"
     container_path = "/etc/prometheus/prometheus.yml"
+  }
+  
+  # FIX 2: Save your historical metrics permanently
+  volumes {
+    volume_name    = docker_volume.prometheus_data.name
+    container_path = "/prometheus"
   }
 }
 
@@ -128,4 +147,14 @@ resource "docker_container" "db" {
   }
 
   networks_advanced { name = docker_network.lab_network.name }
+}
+
+# Create the volume for Grafana Dashboards
+resource "docker_volume" "grafana_data" {
+  name = "grafana_data_volume"
+}
+
+# Create the volume for Prometheus Metrics
+resource "docker_volume" "prometheus_data" {
+  name = "prometheus_data_volume"
 }

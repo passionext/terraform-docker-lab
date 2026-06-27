@@ -3,8 +3,12 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from itertools import groupby
 from operator import itemgetter
+from prometheus_flask_exporter import PrometheusMetrics
 
 app = Flask(__name__)
+
+# Initialize the exporter
+metrics = PrometheusMetrics(app)
 
 # Direct Database Connection Function
 def get_db_connection():

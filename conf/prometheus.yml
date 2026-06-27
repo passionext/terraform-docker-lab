@@ -1,12 +1,15 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 5s # How often to check for new data
 
 scrape_configs:
+  # 1. Monitor Prometheus itself
   - job_name: 'prometheus'
-    metrics_path: '/prometheus/metrics'
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'api_server'
+  # 2. Monitor your Web Servers
+  - job_name: 'flask_web_servers'
     static_configs:
-      - targets: ['api_server:5000']
+      # Because they are on the same Docker network, 
+      # Prometheus can use their exact container names!
+      - targets: ['web_server_0:80', 'web_server_1:80']
