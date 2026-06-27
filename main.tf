@@ -19,18 +19,10 @@ resource "docker_image" "nginx_lb" {
   keep_locally = false
 }
 
-resource "docker_image" "api_image" {
-  name = "my-api-image:latest"
+resource "docker_image" "webServer_image" {
+  name = "my-webserver-image:latest"
   build {
-    context    = "${path.module}/api"
-    dockerfile = "Dockerfile"
-  }
-}
-
-resource "docker_image" "frontend_image" {
-  name = "my-frontend-image:latest"
-  build {
-    context    = "${path.module}/frontend"
+    context    = "${path.module}/webServer"
     dockerfile = "Dockerfile"
   }
 }
@@ -47,18 +39,11 @@ resource "docker_image" "prometheus_image" {
 
 # --- CONTAINERS ---
 
-# 1. Hidden API Server
-resource "docker_container" "api" {
-  name  = "api_server"
-  image = docker_image.api_image.name
-  networks_advanced { name = docker_network.lab_network.name }
-}
-
 # 2. Two Web Servers
-resource "docker_container" "frontend" {
+resource "docker_container" "webServer" {
   count = 2
-  name  = "frontend_server_${count.index}"
-  image = docker_image.frontend_image.name
+  name  = "web_server_${count.index}"
+  image = docker_image.webServer_image.name
   networks_advanced { name = docker_network.lab_network.name }
 }
 
@@ -106,5 +91,41 @@ resource "docker_container" "load_balancer" {
     host_path      = "${abspath(path.module)}/conf/lb.conf"
     container_path = "/etc/nginx/nginx.conf"
   }
+  networks_advanced { name = docker_network.lab_network.name }
+}
+
+# 1. Create a Named Volume for persistence
+resource "docker_volume" "db_data" {
+  name = "postgres_data_volume"
+}
+
+# 2. Add the Database Image
+resource "docker_image" "postgres_image" {
+  name         = "postgres:16-alpine"
+  keep_locally = true
+}
+
+resource "docker_container" "db" {
+  name  = "postgres_db"
+  image = docker_image.postgres_image.name
+
+  env = [
+    "POSTGRES_USER=admin",
+    "POSTGRES_PASSWORD=secretpassword",
+    "POSTGRES_DB=app_db"
+  ]
+
+  # 1. Mount the persistent data storage
+  volumes {
+    volume_name    = docker_volume.db_data.name
+    container_path = "/var/lib/postgresql/data"
+  }
+
+  # 2. Mount your conf folder so Postgres can find init.sql and all_relics.csv
+  volumes {
+    host_path      = "${abspath(path.module)}/conf"
+    container_path = "/docker-entrypoint-initdb.d"
+  }
+
   networks_advanced { name = docker_network.lab_network.name }
 }
